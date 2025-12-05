@@ -1,0 +1,252 @@
+name: Sign IPA and Deploy to GitHub Pages
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_repo:
+        description: 'Source repository (owner/repo)'
+        required: true
+        default: 'YOUR-USERNAME/NoveoNative'
+      release_tag:
+        description: 'Release tag (leave empty for latest)'
+        required: false
+  schedule:
+    # Check for new releases every 6 hours
+    - cron: '0 */6 * * *'
+
+jobs:
+  sign-and-deploy:
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          
+      - name: Get latest release info
+        id: release
+        run: |
+          if [ -z "${{ github.event.inputs.release_tag }}" ]; then
+            REPO="${{ github.event.inputs.source_repo || 'YOUR-USERNAME/NoveoNative' }}"
+            RELEASE_DATA=$(curl -s "https://api.github.com/repos/$REPO/releases/latest")
+          else
+            REPO="${{ github.event.inputs.source_repo || 'YOUR-USERNAME/NoveoNative' }}"
+            RELEASE_DATA=$(curl -s "https://api.github.com/repos/$REPO/releases/tags/${{ github.event.inputs.release_tag }}")
+          fi
+          
+          TAG_NAME=$(echo "$RELEASE_DATA" | jq -r '.tag_name')
+          PUBLISHED_AT=$(echo "$RELEASE_DATA" | jq -r '.published_at')
+          IPA_URL=$(echo "$RELEASE_DATA" | jq -r '.assets[] | select(.name | endswith(".ipa")) | .browser_download_url' | head -1)
+          
+          if [ -z "$IPA_URL" ] || [ "$IPA_URL" = "null" ]; then
+            echo "No IPA found in release"
+            exit 1
+          fi
+          
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "published_at=$PUBLISHED_AT" >> $GITHUB_OUTPUT
+          echo "ipa_url=$IPA_URL" >> $GITHUB_OUTPUT
+          
+          echo "Found release: $TAG_NAME"
+          echo "IPA URL: $IPA_URL"
+          
+      - name: Check if already deployed
+        id: check
+        run: |
+          if [ -f "version.txt" ]; then
+            CURRENT_VERSION=$(cat version.txt)
+            if [ "$CURRENT_VERSION" = "${{ steps.release.outputs.tag_name }}" ]; then
+              echo "already_deployed=true" >> $GITHUB_OUTPUT
+              echo "Version $CURRENT_VERSION already deployed"
+              exit 0
+            fi
+          fi
+          echo "already_deployed=false" >> $GITHUB_OUTPUT
+          
+      - name: Download unsigned IPA
+        if: steps.check.outputs.already_deployed != 'true'
+        run: |
+          echo "Downloading IPA from: ${{ steps.release.outputs.ipa_url }}"
+          curl -L -o unsigned.ipa "${{ steps.release.outputs.ipa_url }}"
+          ls -lh unsigned.ipa
+          
+      - name: Setup certificate and provisioning profile
+        if: steps.check.outputs.already_deployed != 'true'
+        run: |
+          # Decode certificate
+          echo "${{ secrets.P12_CERTIFICATE }}" | base64 --decode > certificate.p12
+          
+          # Decode provisioning profile
+          echo "${{ secrets.PROVISIONING_PROFILE }}" | base64 --decode > profile.mobileprovision
+          
+          # Create keychain
+          security create-keychain -p actions temp.keychain
+          security default-keychain -s temp.keychain
+          security unlock-keychain -p actions temp.keychain
+          security set-keychain-settings -t 3600 -u temp.keychain
+          
+          # Import certificate
+          security import certificate.p12 -k temp.keychain -P "${{ secrets.P12_PASSWORD }}" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k actions temp.keychain
+          
+          # Copy provisioning profile
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          
+          echo "Certificate and profile installed"
+          
+      - name: Sign IPA
+        if: steps.check.outputs.already_deployed != 'true'
+        run: |
+          # Extract unsigned IPA
+          mkdir -p Payload
+          unzip -q unsigned.ipa -d Payload
+          
+          # Find app bundle
+          APP_PATH=$(find Payload -name "*.app" -depth 1)
+          echo "App path: $APP_PATH"
+          
+          # Get signing identity
+          IDENTITY=$(security find-identity -v -p codesigning temp.keychain | grep "iPhone Distribution" | head -1 | grep -o '"[^"]*"' | tr -d '"')
+          echo "Signing identity: $IDENTITY"
+          
+          # Sign the app
+          /usr/bin/codesign --force --sign "$IDENTITY" \
+            --entitlements "$APP_PATH/archived-expanded-entitlements.xcent" \
+            --timestamp=none \
+            "$APP_PATH"
+          
+          # Verify signature
+          codesign -vvv --deep --strict "$APP_PATH"
+          
+          # Repackage IPA
+          cd Payload
+          zip -qr ../NoveoNative.ipa *
+          cd ..
+          
+          # Get file size
+          SIZE=$(stat -f%z NoveoNative.ipa)
+          echo "Signed IPA size: $SIZE bytes"
+          echo "ipa_size=$SIZE" >> $GITHUB_OUTPUT
+          
+          # Cleanup
+          rm -rf Payload unsigned.ipa certificate.p12 profile.mobileprovision
+          security delete-keychain temp.keychain
+          
+      - name: Update manifest.plist
+        if: steps.check.outputs.already_deployed != 'true'
+        run: |
+          cat > manifest.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>items</key>
+              <array>
+                  <dict>
+                      <key>assets</key>
+                      <array>
+                          <dict>
+                              <key>kind</key>
+                              <string>software-package</string>
+                              <key>url</key>
+                              <string>https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/NoveoNative.ipa</string>
+                          </dict>
+                          <dict>
+                              <key>kind</key>
+                              <string>display-image</string>
+                              <key>url</key>
+                              <string>https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/assets/icon57.png</string>
+                          </dict>
+                          <dict>
+                              <key>kind</key>
+                              <string>full-size-image</string>
+                              <key>url</key>
+                              <string>https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/assets/icon512.png</string>
+                          </dict>
+                      </array>
+                      <key>metadata</key>
+                      <dict>
+                          <key>bundle-identifier</key>
+                          <string>com.yourcompany.noveonative</string>
+                          <key>bundle-version</key>
+                          <string>${{ steps.release.outputs.tag_name }}</string>
+                          <key>kind</key>
+                          <string>software</string>
+                          <key>title</key>
+                          <string>Noveo Native</string>
+                      </dict>
+                  </dict>
+              </array>
+          </dict>
+          </plist>
+          EOF
+          
+      - name: Update apps.json
+        if: steps.check.outputs.already_deployed != 'true'
+        run: |
+          cat > apps.json << 'EOF'
+          {
+            "name": "Noveo Native Repository",
+            "identifier": "com.noveo.repo",
+            "sourceURL": "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/apps.json",
+            "apps": [
+              {
+                "name": "Noveo Native",
+                "bundleIdentifier": "com.yourcompany.noveonative",
+                "developerName": "Your Name",
+                "subtitle": "Modern Messenger for iOS",
+                "version": "${{ steps.release.outputs.tag_name }}",
+                "versionDate": "${{ steps.release.outputs.published_at }}",
+                "versionDescription": "Latest release with bug fixes and improvements",
+                "downloadURL": "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/NoveoNative.ipa",
+                "localizedDescription": "A beautiful and modern messaging app with real-time features including typing indicators, seen receipts, file sharing, and more.",
+                "iconURL": "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/assets/icon512.png",
+                "tintColor": "#3b82f6",
+                "size": ${{ steps.sign.outputs.ipa_size }},
+                "screenshotURLs": [
+                  "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/assets/screenshot1.png",
+                  "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/assets/screenshot2.png"
+                ]
+              }
+            ],
+            "news": [
+              {
+                "title": "Noveo Native ${{ steps.release.outputs.tag_name }} Released!",
+                "identifier": "${{ steps.release.outputs.tag_name }}",
+                "caption": "Check out the latest features and improvements",
+                "date": "${{ steps.release.outputs.published_at }}",
+                "tintColor": "#3b82f6",
+                "imageURL": "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/assets/icon512.png",
+                "notify": true
+              }
+            ]
+          }
+          EOF
+          
+      - name: Save version
+        if: steps.check.outputs.already_deployed != 'true'
+        run: |
+          echo "${{ steps.release.outputs.tag_name }}" > version.txt
+          
+      - name: Commit and push
+        if: steps.check.outputs.already_deployed != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Deploy version ${{ steps.release.outputs.tag_name }}"
+          git push
+          
+      - name: Create deployment summary
+        run: |
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${{ steps.release.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Published:** ${{ steps.release.outputs.published_at }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ${{ steps.check.outputs.already_deployed == 'true' && '✅ Already deployed' || '✅ Successfully deployed' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📱 Installation Links" >> $GITHUB_STEP_SUMMARY
+          echo "- **Web Install:** https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/" >> $GITHUB_STEP_SUMMARY
+          echo "- **AltStore:** https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/apps.json" >> $GITHUB_STEP_SUMMARY
