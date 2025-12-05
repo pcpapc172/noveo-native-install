@@ -214,10 +214,28 @@ jobs:
           echo "📋 App info:"
           codesign -d --entitlements :- "$APP_PATH" 2>&1 | head -20
           
-          # Extract bundle ID for manifest
-          BUNDLE_ID=$(defaults read "$APP_PATH/Info.plist" CFBundleIdentifier)
+          # Extract bundle ID from entitlements (more reliable)
+          BUNDLE_ID=$(grep -A 1 "application-identifier" entitlements.plist | grep "<string>" | sed 's/.*<string>\(.*\)<\/string>.*/\1/' | cut -d. -f2-)
+          
+          # Fallback: try Info.plist with plutil
+          if [ -z "$BUNDLE_ID" ]; then
+            BUNDLE_ID=$(plutil -extract CFBundleIdentifier raw -o - "$APP_PATH/Info.plist" 2>/dev/null)
+          fi
+          
+          # Fallback: extract from app path name
+          if [ -z "$BUNDLE_ID" ]; then
+            BUNDLE_ID=$(basename "$APP_PATH" .app)
+          fi
+          
           echo "📱 Bundle ID: $BUNDLE_ID"
           echo "bundle_id=$BUNDLE_ID" >> $GITHUB_OUTPUT
+          
+          # Make sure we got something
+          if [ -z "$BUNDLE_ID" ]; then
+            echo "❌ Could not extract Bundle ID"
+            exit 1
+          fi
+
           
           # Repackage IPA
           echo "📦 Repackaging IPA..."
