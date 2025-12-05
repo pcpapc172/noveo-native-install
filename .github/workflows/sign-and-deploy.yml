@@ -10,6 +10,11 @@ on:
       release_tag:
         description: 'Release tag (leave empty for latest)'
         required: false
+      force_deploy:
+        description: 'Force redeploy (skip version check)'
+        required: false
+        type: boolean
+        default: false
   schedule:
     - cron: '0 */6 * * *'
 
@@ -82,6 +87,13 @@ jobs:
       - name: Check if already deployed
         id: check
         run: |
+          # Force deploy if requested
+          if [ "${{ github.event.inputs.force_deploy }}" = "true" ]; then
+            echo "already_deployed=false" >> $GITHUB_OUTPUT
+            echo "🔄 Force deploy requested, proceeding..."
+            exit 0
+          fi
+          
           if [ -f "version.txt" ]; then
             CURRENT_VERSION=$(cat version.txt)
             if [ "$CURRENT_VERSION" = "${{ steps.release.outputs.tag_name }}" ]; then
@@ -184,6 +196,22 @@ jobs:
           echo "📋 Entitlements:"
           cat entitlements.plist
           
+          # Extract bundle ID from application-identifier in entitlements
+          FULL_APP_ID=$(plutil -extract application-identifier raw entitlements.plist 2>/dev/null || echo "")
+          
+          if [ -n "$FULL_APP_ID" ]; then
+            # Remove team ID prefix (everything before first dot)
+            BUNDLE_ID=$(echo "$FULL_APP_ID" | sed 's/^[^.]*\.//')
+            echo "✅ Extracted Bundle ID from entitlements: $BUNDLE_ID"
+          else
+            # Fallback to known bundle ID
+            BUNDLE_ID="com.etisalat.INDY"
+            echo "⚠️ Using fallback Bundle ID: $BUNDLE_ID"
+          fi
+          
+          echo "📱 Bundle ID: $BUNDLE_ID"
+          echo "bundle_id=$BUNDLE_ID" >> $GITHUB_OUTPUT
+          
           # Remove old signature
           rm -rf "$APP_PATH/_CodeSignature"
           rm -f "$APP_PATH/embedded.mobileprovision"
@@ -211,31 +239,8 @@ jobs:
           echo "✅ Verifying signature..."
           codesign -vvv --deep --strict "$APP_PATH"
           
-          echo "📋 App info:"
+          echo "📋 Signature details:"
           codesign -d --entitlements :- "$APP_PATH" 2>&1 | head -20
-          
-          # Extract bundle ID from entitlements (more reliable)
-          BUNDLE_ID=$(grep -A 1 "application-identifier" entitlements.plist | grep "<string>" | sed 's/.*<string>\(.*\)<\/string>.*/\1/' | cut -d. -f2-)
-          
-          # Fallback: try Info.plist with plutil
-          if [ -z "$BUNDLE_ID" ]; then
-            BUNDLE_ID=$(plutil -extract CFBundleIdentifier raw -o - "$APP_PATH/Info.plist" 2>/dev/null)
-          fi
-          
-          # Fallback: extract from app path name
-          if [ -z "$BUNDLE_ID" ]; then
-            BUNDLE_ID=$(basename "$APP_PATH" .app)
-          fi
-          
-          echo "📱 Bundle ID: $BUNDLE_ID"
-          echo "bundle_id=$BUNDLE_ID" >> $GITHUB_OUTPUT
-          
-          # Make sure we got something
-          if [ -z "$BUNDLE_ID" ]; then
-            echo "❌ Could not extract Bundle ID"
-            exit 1
-          fi
-
           
           # Repackage IPA
           echo "📦 Repackaging IPA..."
@@ -282,7 +287,7 @@ jobs:
                           <key>kind</key>
                           <string>software</string>
                           <key>title</key>
-                          <string>Noveo Native</string>
+                          <string>NoveoNative</string>
                       </dict>
                   </dict>
               </array>
@@ -298,12 +303,12 @@ jobs:
         run: |
           cat > apps.json << EOF
           {
-            "name": "Noveo Native Repository",
+            "name": "NoveoNative Repository",
             "identifier": "com.noveo.repo",
             "sourceURL": "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/apps.json",
             "apps": [
               {
-                "name": "Noveo Native",
+                "name": "NoveoNative",
                 "bundleIdentifier": "${{ steps.sign.outputs.bundle_id }}",
                 "developerName": "PCPA",
                 "subtitle": "Modern Messenger for iOS",
@@ -319,7 +324,7 @@ jobs:
             ],
             "news": [
               {
-                "title": "Noveo Native ${{ steps.release.outputs.tag_name }} Released!",
+                "title": "NoveoNative ${{ steps.release.outputs.tag_name }} Released!",
                 "identifier": "${{ steps.release.outputs.tag_name }}",
                 "caption": "Check out the latest features and improvements",
                 "date": "${{ steps.release.outputs.published_at }}",
