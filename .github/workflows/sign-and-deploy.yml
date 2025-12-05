@@ -6,12 +6,11 @@ on:
       source_repo:
         description: 'Source repository (owner/repo)'
         required: true
-        default: 'YOUR-USERNAME/NoveoNative'
+        default: 'pcpapc172/NoveoNative'
       release_tag:
         description: 'Release tag (leave empty for latest)'
         required: false
   schedule:
-    # Check for new releases every 6 hours
     - cron: '0 */6 * * *'
 
 jobs:
@@ -26,30 +25,52 @@ jobs:
           
       - name: Get latest release info
         id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          REPO="${{ github.event.inputs.source_repo || 'pcpapc172/NoveoNative' }}"
+          echo "Fetching release from: $REPO"
+          
           if [ -z "${{ github.event.inputs.release_tag }}" ]; then
-            REPO="${{ github.event.inputs.source_repo || 'YOUR-USERNAME/NoveoNative' }}"
-            RELEASE_DATA=$(curl -s "https://api.github.com/repos/$REPO/releases/latest")
+            echo "Fetching latest release..."
+            RELEASE_DATA=$(curl -s -H "Authorization: token $GH_TOKEN" \
+              "https://api.github.com/repos/$REPO/releases/latest")
           else
-            REPO="${{ github.event.inputs.source_repo || 'YOUR-USERNAME/NoveoNative' }}"
-            RELEASE_DATA=$(curl -s "https://api.github.com/repos/$REPO/releases/tags/${{ github.event.inputs.release_tag }}")
+            echo "Fetching specific release: ${{ github.event.inputs.release_tag }}"
+            RELEASE_DATA=$(curl -s -H "Authorization: token $GH_TOKEN" \
+              "https://api.github.com/repos/$REPO/releases/tags/${{ github.event.inputs.release_tag }}")
           fi
           
-          TAG_NAME=$(echo "$RELEASE_DATA" | jq -r '.tag_name')
-          PUBLISHED_AT=$(echo "$RELEASE_DATA" | jq -r '.published_at')
-          IPA_URL=$(echo "$RELEASE_DATA" | jq -r '.assets[] | select(.name | endswith(".ipa")) | .browser_download_url' | head -1)
+          # Debug: Show release data
+          echo "Release data:"
+          echo "$RELEASE_DATA" | jq '.'
           
-          if [ -z "$IPA_URL" ] || [ "$IPA_URL" = "null" ]; then
-            echo "No IPA found in release"
+          # Extract info with better error handling
+          TAG_NAME=$(echo "$RELEASE_DATA" | jq -r '.tag_name // empty')
+          PUBLISHED_AT=$(echo "$RELEASE_DATA" | jq -r '.published_at // empty')
+          
+          # Find IPA with better error handling
+          IPA_URL=$(echo "$RELEASE_DATA" | jq -r '.assets[]? | select(.name | endswith(".ipa")) | .browser_download_url' | head -1)
+          
+          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "null" ]; then
+            echo "❌ Error: Could not find release"
+            echo "Response: $RELEASE_DATA"
             exit 1
           fi
+          
+          if [ -z "$IPA_URL" ] || [ "$IPA_URL" = "null" ]; then
+            echo "❌ Error: No IPA found in release $TAG_NAME"
+            echo "Available assets:"
+            echo "$RELEASE_DATA" | jq -r '.assets[]?.name'
+            exit 1
+          fi
+          
+          echo "✅ Found release: $TAG_NAME"
+          echo "✅ IPA URL: $IPA_URL"
           
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
           echo "published_at=$PUBLISHED_AT" >> $GITHUB_OUTPUT
           echo "ipa_url=$IPA_URL" >> $GITHUB_OUTPUT
-          
-          echo "Found release: $TAG_NAME"
-          echo "IPA URL: $IPA_URL"
           
       - name: Check if already deployed
         id: check
@@ -58,22 +79,36 @@ jobs:
             CURRENT_VERSION=$(cat version.txt)
             if [ "$CURRENT_VERSION" = "${{ steps.release.outputs.tag_name }}" ]; then
               echo "already_deployed=true" >> $GITHUB_OUTPUT
-              echo "Version $CURRENT_VERSION already deployed"
+              echo "✅ Version $CURRENT_VERSION already deployed, skipping..."
               exit 0
             fi
           fi
           echo "already_deployed=false" >> $GITHUB_OUTPUT
+          echo "🔄 New version detected, proceeding with deployment..."
           
       - name: Download unsigned IPA
         if: steps.check.outputs.already_deployed != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Downloading IPA from: ${{ steps.release.outputs.ipa_url }}"
-          curl -L -o unsigned.ipa "${{ steps.release.outputs.ipa_url }}"
+          echo "📥 Downloading IPA from: ${{ steps.release.outputs.ipa_url }}"
+          curl -L -H "Authorization: token $GH_TOKEN" \
+            -o unsigned.ipa "${{ steps.release.outputs.ipa_url }}"
+          
+          if [ ! -f unsigned.ipa ]; then
+            echo "❌ Failed to download IPA"
+            exit 1
+          fi
+          
+          FILE_SIZE=$(stat -f%z unsigned.ipa 2>/dev/null || stat -c%s unsigned.ipa 2>/dev/null)
+          echo "✅ Downloaded IPA: $FILE_SIZE bytes"
           ls -lh unsigned.ipa
           
       - name: Setup certificate and provisioning profile
         if: steps.check.outputs.already_deployed != 'true'
         run: |
+          echo "🔐 Setting up certificate and provisioning profile..."
+          
           # Decode certificate
           echo "${{ secrets.P12_CERTIFICATE }}" | base64 --decode > certificate.p12
           
@@ -87,34 +122,58 @@ jobs:
           security set-keychain-settings -t 3600 -u temp.keychain
           
           # Import certificate
-          security import certificate.p12 -k temp.keychain -P "${{ secrets.P12_PASSWORD }}" -T /usr/bin/codesign
+          security import certificate.p12 -k temp.keychain -P "${{ secrets.P12_PASSWORD }}" -T /usr/bin/codesign -T /usr/bin/security
           security set-key-partition-list -S apple-tool:,apple: -s -k actions temp.keychain
           
           # Copy provisioning profile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          PROFILE_UUID=$(grep -a -A 1 'UUID' profile.mobileprovision | grep -o '<string>.*</string>' | sed 's/<[^>]*>//g')
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/${PROFILE_UUID}.mobileprovision
           
-          echo "Certificate and profile installed"
+          echo "✅ Certificate and profile installed"
           
       - name: Sign IPA
+        id: sign
         if: steps.check.outputs.already_deployed != 'true'
         run: |
+          echo "✍️ Signing IPA..."
+          
           # Extract unsigned IPA
-          mkdir -p Payload
           unzip -q unsigned.ipa -d Payload
           
           # Find app bundle
-          APP_PATH=$(find Payload -name "*.app" -depth 1)
+          APP_PATH=$(find Payload -name "*.app" -maxdepth 2 | head -1)
           echo "App path: $APP_PATH"
           
+          if [ -z "$APP_PATH" ]; then
+            echo "❌ Could not find .app bundle"
+            exit 1
+          fi
+          
           # Get signing identity
-          IDENTITY=$(security find-identity -v -p codesigning temp.keychain | grep "iPhone Distribution" | head -1 | grep -o '"[^"]*"' | tr -d '"')
+          IDENTITY=$(security find-identity -v -p codesigning temp.keychain | grep "iPhone" | head -1 | grep -o '"[^"]*"' | tr -d '"')
+          
+          if [ -z "$IDENTITY" ]; then
+            echo "❌ Could not find signing identity"
+            security find-identity -v -p codesigning temp.keychain
+            exit 1
+          fi
+          
           echo "Signing identity: $IDENTITY"
+          
+          # Remove old signature
+          rm -rf "$APP_PATH/_CodeSignature"
+          
+          # Sign frameworks and plugins
+          find "$APP_PATH/Frameworks" -name "*.framework" -o -name "*.dylib" 2>/dev/null | while read framework; do
+            echo "Signing: $framework"
+            /usr/bin/codesign --force --sign "$IDENTITY" --timestamp=none "$framework"
+          done
           
           # Sign the app
           /usr/bin/codesign --force --sign "$IDENTITY" \
-            --entitlements "$APP_PATH/archived-expanded-entitlements.xcent" \
             --timestamp=none \
+            --generate-entitlement-der \
             "$APP_PATH"
           
           # Verify signature
@@ -122,12 +181,12 @@ jobs:
           
           # Repackage IPA
           cd Payload
-          zip -qr ../NoveoNative.ipa *
+          zip -qr ../NoveoNative.ipa .
           cd ..
           
           # Get file size
-          SIZE=$(stat -f%z NoveoNative.ipa)
-          echo "Signed IPA size: $SIZE bytes"
+          SIZE=$(stat -f%z NoveoNative.ipa 2>/dev/null || stat -c%s NoveoNative.ipa 2>/dev/null)
+          echo "✅ Signed IPA size: $SIZE bytes"
           echo "ipa_size=$SIZE" >> $GITHUB_OUTPUT
           
           # Cleanup
@@ -137,7 +196,7 @@ jobs:
       - name: Update manifest.plist
         if: steps.check.outputs.already_deployed != 'true'
         run: |
-          cat > manifest.plist << 'EOF'
+          cat > manifest.plist << EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -186,7 +245,7 @@ jobs:
       - name: Update apps.json
         if: steps.check.outputs.already_deployed != 'true'
         run: |
-          cat > apps.json << 'EOF'
+          cat > apps.json << EOF
           {
             "name": "Noveo Native Repository",
             "identifier": "com.noveo.repo",
@@ -204,7 +263,7 @@ jobs:
                 "localizedDescription": "A beautiful and modern messaging app with real-time features including typing indicators, seen receipts, file sharing, and more.",
                 "iconURL": "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/assets/icon512.png",
                 "tintColor": "#3b82f6",
-                "size": ${{ steps.sign.outputs.ipa_size }},
+                "size": ${{ steps.sign.outputs.ipa_size || 50000000 }},
                 "screenshotURLs": [
                   "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/assets/screenshot1.png",
                   "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/assets/screenshot2.png"
@@ -236,7 +295,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "Deploy version ${{ steps.release.outputs.tag_name }}"
+          git commit -m "🚀 Deploy version ${{ steps.release.outputs.tag_name }}"
           git push
           
       - name: Create deployment summary
