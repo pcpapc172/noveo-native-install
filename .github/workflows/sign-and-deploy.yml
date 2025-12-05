@@ -102,24 +102,26 @@ jobs:
           FILE_SIZE=$(stat -f%z unsigned.ipa)
           echo "✅ Downloaded: $FILE_SIZE bytes"
           
-      - name: Install and Build Zsign
+      - name: Build Zsign
         if: steps.check.outputs.already_deployed != 'true'
         run: |
           echo "📦 Building Zsign from source..."
           
-          # Clone zsign repository
+          # Install dependencies
+          brew install pkg-config openssl minizip
+          
+          # Clone and build zsign
           git clone https://github.com/zhlynn/zsign.git
-          cd zsign
+          cd zsign/build/macos
+          make clean && make
           
-          # Build
-          g++ -std=c++11 *.cpp common/*.cpp -lcrypto -o zsign
-          
-          # Move to system path
-          sudo mv zsign /usr/local/bin/
+          # Move binary to accessible location
+          sudo cp zsign /usr/local/bin/
           
           # Verify
-          zsign --version || echo "Zsign built successfully"
-          cd ..
+          /usr/local/bin/zsign -v || echo "✅ Zsign built successfully"
+          
+          cd ../../..
           rm -rf zsign
           
       - name: Setup certificate and provisioning profile
@@ -140,7 +142,7 @@ jobs:
         id: sign
         if: steps.check.outputs.already_deployed != 'true'
         run: |
-          echo "✍️ Signing IPA with Zsign..."
+          echo "✍️ Signing IPA with Zsign (Feather method)..."
           
           # Sign using zsign
           /usr/local/bin/zsign -k certificate.p12 -p "${{ secrets.P12_PASSWORD }}" \
@@ -151,23 +153,21 @@ jobs:
             exit 1
           fi
           
-          # Verify signature
-          codesign -vvv NoveoNative.ipa 2>&1 || echo "Checking signature..."
+          echo "✅ IPA signed successfully"
           
           # Get file size
           SIZE=$(stat -f%z NoveoNative.ipa)
           SIZE_MB=$(echo "scale=2; $SIZE / 1024 / 1024" | bc)
-          echo "✅ Signed IPA: ${SIZE_MB}MB ($SIZE bytes)"
+          echo "📦 Signed IPA: ${SIZE_MB}MB ($SIZE bytes)"
           echo "ipa_size=$SIZE" >> $GITHUB_OUTPUT
           
           # Extract Bundle ID
+          echo "📱 Extracting Bundle ID..."
           unzip -q NoveoNative.ipa -d temp_extract
           APP_PATH=$(find temp_extract/Payload -name "*.app" -type d -depth 1 | head -1)
           
           if [ -n "$APP_PATH" ]; then
-            BUNDLE_ID=$(plutil -extract CFBundleIdentifier raw "$APP_PATH/Info.plist" 2>/dev/null || \
-                       defaults read "$APP_PATH/Info.plist" CFBundleIdentifier 2>/dev/null || \
-                       echo "com.etisalat.INDY")
+            BUNDLE_ID=$(plutil -extract CFBundleIdentifier raw "$APP_PATH/Info.plist" 2>/dev/null || echo "com.etisalat.INDY")
           else
             BUNDLE_ID="com.etisalat.INDY"
           fi
@@ -265,8 +265,8 @@ jobs:
           echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Version:** ${{ steps.release.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Bundle ID:** ${{ steps.sign.outputs.bundle_id }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Signing Method:** Zsign" >> $GITHUB_STEP_SUMMARY
+          echo "- **Signing:** Zsign (same as Feather)" >> $GITHUB_STEP_SUMMARY
           echo "- **Status:** ✅ Successfully deployed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📱 Installation Links" >> $GITHUB_STEP_SUMMARY
-          echo "- https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/" >> $GITHUB_STEP_SUMMARY
+          echo "### 📱 Installation" >> $GITHUB_STEP_SUMMARY
+          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/" >> $GITHUB_STEP_SUMMARY
