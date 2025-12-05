@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Install Noveo Native - iOS</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="assets/icon512.png" alt="Noveo Native" class="logo">
+            <h1>Noveo Native</h1>
+            <p class="tagline">Modern Messenger for iOS</p>
+            <p class="version" id="version">Loading...</p>
+        </div>
+
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-value" id="size">-</div>
+                <div class="stat-label">Size</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="updated">-</div>
+                <div class="stat-label">Updated</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="method">OTA</div>
+                <div class="stat-label">Method</div>
+            </div>
+        </div>
+
+        <!-- Installation Methods -->
+        <div class="install-section">
+            <h2>📲 Installation Method</h2>
+            
+            <!-- Method 1: OTA Installation -->
+            <div class="method-card" id="otaCard">
+                <div class="method-header">
+                    <span class="method-icon">📱</span>
+                    <div>
+                        <h3>Over-The-Air (OTA)</h3>
+                        <p>Install directly on your device</p>
+                    </div>
+                </div>
+                <a href="#" id="installBtn" class="install-btn">
+                    Install Now
+                </a>
+            </div>
+
+            <!-- Method 2: AltStore -->
+            <div class="method-card">
+                <div class="method-header">
+                    <span class="method-icon">🔄</span>
+                    <div>
+                        <h3>AltStore / SideStore</h3>
+                        <p>Add repository for auto-updates</p>
+                    </div>
+                </div>
+                <div class="repo-url">
+                    <input type="text" id="repoUrl" readonly>
+                    <button onclick="copyRepoUrl()" class="copy-btn">Copy</button>
+                </div>
+            </div>
+
+            <!-- Method 3: Direct Download -->
+            <div class="method-card">
+                <div class="method-header">
+                    <span class="method-icon">💾</span>
+                    <div>
+                        <h3>Direct Download</h3>
+                        <p>Download IPA for manual install</p>
+                    </div>
+                </div>
+                <a href="NoveoNative.ipa" class="download-btn" download>
+                    Download IPA
+                </a>
+            </div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="instructions">
+            <h3>📋 Installation Steps (OTA):</h3>
+            <ol>
+                <li>Tap <strong>"Install Now"</strong> button</li>
+                <li>Allow the download to start</li>
+                <li>Go to <strong>Settings → General → VPN & Device Management</strong></li>
+                <li>Find the app and tap <strong>"Trust"</strong></li>
+                <li>Return home and launch the app</li>
+            </ol>
+        </div>
+
+        <div class="instructions">
+            <h3>📋 Installation Steps (AltStore):</h3>
+            <ol>
+                <li>Install <a href="https://altstore.io" target="_blank">AltStore</a> on your device</li>
+                <li>Open AltStore → <strong>Sources</strong> → <strong>+</strong></li>
+                <li>Copy and paste the repository URL above</li>
+                <li>Find "Noveo Native" and tap <strong>Install</strong></li>
+            </ol>
+        </div>
+
+        <!-- Screenshots -->
+        <div class="screenshots">
+            <h3>📸 Screenshots</h3>
+            <div class="screenshot-grid">
+                <img src="assets/screenshot1.png" alt="Screenshot 1">
+                <img src="assets/screenshot2.png" alt="Screenshot 2">
+            </div>
+        </div>
+
+        <!-- Warning -->
+        <div class="warning">
+            <strong>⚠️ Important Notice:</strong><br>
+            This app is distributed outside the App Store and signed with an enterprise certificate.
+            Only install if you trust the developer. Your device may require you to trust the certificate in Settings.
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>Made with ❤️ for iOS users</p>
+            <p class="github-link">
+                <a href="https://github.com/YOUR-USERNAME/NoveoNative" target="_blank">
+                    View Source Code on GitHub
+                </a>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const GITHUB_PAGES_URL = window.location.origin + window.location.pathname.replace(/\/$/, '');
+        const VERSION_FILE = GITHUB_PAGES_URL + '/version.txt';
+        
+        // Set repo URL
+        document.getElementById('repoUrl').value = GITHUB_PAGES_URL + '/apps.json';
+        
+        // Set install button
+        const manifestUrl = GITHUB_PAGES_URL + '/manifest.plist';
+        document.getElementById('installBtn').href = `itms-services://?action=download-manifest&url=${encodeURIComponent(manifestUrl)}`;
+        
+        // Load version info
+        async function loadVersion() {
+            try {
+                const response = await fetch(VERSION_FILE + '?t=' + Date.now());
+                const version = await response.text();
+                document.getElementById('version').textContent = `Version ${version.trim()}`;
+            } catch (error) {
+                document.getElementById('version').textContent = 'Version 1.0.0';
+            }
+        }
+        
+        // Get IPA size
+        async function getIPASize() {
+            try {
+                const response = await fetch(GITHUB_PAGES_URL + '/NoveoNative.ipa', { method: 'HEAD' });
+                const size = parseInt(response.headers.get('content-length'));
+                document.getElementById('size').textContent = `${(size / 1024 / 1024).toFixed(1)} MB`;
+            } catch (error) {
+                document.getElementById('size').textContent = 'N/A';
+            }
+        }
+        
+        // Copy repo URL
+        function copyRepoUrl() {
+            const input = document.getElementById('repoUrl');
+            input.select();
+            document.execCommand('copy');
+            
+            const btn = event.target;
+            btn.textContent = '✓ Copied!';
+            setTimeout(() => {
+                btn.textContent = 'Copy';
+            }, 2000);
+        }
+        
+        // Detect iOS
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        
+        if (!isIOS) {
+            const otaCard = document.getElementById('otaCard');
+            otaCard.style.opacity = '0.6';
+            document.getElementById('installBtn').onclick = (e) => {
+                e.preventDefault();
+                alert('OTA installation only works on iOS devices. Please use AltStore or download the IPA.');
+            };
+        }
+        
+        // Load data
+        loadVersion();
+        getIPASize();
+    </script>
+</body>
+</html>
