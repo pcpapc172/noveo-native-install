@@ -5,8 +5,8 @@
   "apps": [
     {
       "name": "Noveo Native",
-      "bundleIdentifier": "com.yourcompany.noveonative",
-      "developerName": "Your Name",
+      "bundleIdentifier": "com.etisalat.INDY",
+      "developerName": "PCPA",
       "subtitle": "Modern Messenger for iOS",
       "version": "v1.1.5",
       "versionDate": "2025-12-05T12:56:34Z",
@@ -15,11 +15,7 @@
       "localizedDescription": "A beautiful and modern messaging app with real-time features including typing indicators, seen receipts, file sharing, and more.",
       "iconURL": "https://pcpapc172.github.io/noveo-native-install/assets/icon512.png",
       "tintColor": "#3b82f6",
-      "size": 18663622,
-      "screenshotURLs": [
-        "https://pcpapc172.github.io/noveo-native-install/assets/screenshot1.png",
-        "https://pcpapc172.github.io/noveo-native-install/assets/screenshot2.png"
-      ]
+      "size": 18673731
     }
   ],
   "news": [

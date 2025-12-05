@@ -13,23 +13,11 @@
                     <key>url</key>
                     <string>https://pcpapc172.github.io/noveo-native-install/NoveoNative.ipa</string>
                 </dict>
-                <dict>
-                    <key>kind</key>
-                    <string>display-image</string>
-                    <key>url</key>
-                    <string>https://pcpapc172.github.io/noveo-native-install/assets/icon57.png</string>
-                </dict>
-                <dict>
-                    <key>kind</key>
-                    <string>full-size-image</string>
-                    <key>url</key>
-                    <string>https://pcpapc172.github.io/noveo-native-install/assets/icon512.png</string>
-                </dict>
             </array>
             <key>metadata</key>
             <dict>
                 <key>bundle-identifier</key>
-                <string>com.yourcompany.noveonative</string>
+                <string>com.etisalat.INDY</string>
                 <key>bundle-version</key>
                 <string>v1.1.5</string>
                 <key>kind</key>
