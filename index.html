@@ -175,16 +175,37 @@
         }
         
         // Detect iOS
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        // Better iOS/iPadOS detection
+        function isIOSDevice() {
+            // Check for iPad/iPhone/iPod in user agent
+            if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+                return true;
+            }
+            
+            // Check for iPadOS (reports as Mac but has touch)
+            if (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) {
+                return true;
+            }
+            
+            // Check for iOS/iPadOS features
+            if (navigator.platform === 'iPad' || navigator.platform === 'iPhone') {
+                return true;
+            }
+            
+            return false;
+        }
+        
+        const isIOS = isIOSDevice();
         
         if (!isIOS) {
             const otaCard = document.getElementById('otaCard');
             otaCard.style.opacity = '0.6';
             document.getElementById('installBtn').onclick = (e) => {
                 e.preventDefault();
-                alert('OTA installation only works on iOS devices. Please use AltStore or download the IPA.');
+                alert('OTA installation only works on iOS devices.');
             };
         }
+
         
         // Load data
         loadVersion();
