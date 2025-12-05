@@ -4,14 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Install Noveo Native - iOS</title>
+    <title>Install NoveoNative - iOS</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <img src="assets/icon512.png" alt="Noveo Native" class="logo">
-            <h1>Noveo Native</h1>
+            <img src="assets/icon512.png" alt="NoveoNative" class="logo" onerror="this.style.display='none'">
+            <h1>NoveoNative</h1>
             <p class="tagline">Modern Messenger for iOS</p>
             <p class="version" id="version">Loading...</p>
         </div>
@@ -31,11 +31,9 @@
             </div>
         </div>
 
-        <!-- Installation Methods -->
         <div class="install-section">
             <h2>📲 Installation Method</h2>
             
-            <!-- Method 1: OTA Installation -->
             <div class="method-card" id="otaCard">
                 <div class="method-header">
                     <span class="method-icon">📱</span>
@@ -47,9 +45,12 @@
                 <a href="#" id="installBtn" class="install-btn">
                     Install Now
                 </a>
+                <div id="debugInfo" style="margin-top: 15px; padding: 10px; background: #f0f0f0; border-radius: 8px; font-size: 12px; font-family: monospace; display: none;">
+                    <strong>Debug Info:</strong><br>
+                    <span id="debugText"></span>
+                </div>
             </div>
 
-            <!-- Method 2: AltStore -->
             <div class="method-card">
                 <div class="method-header">
                     <span class="method-icon">🔄</span>
@@ -64,7 +65,6 @@
                 </div>
             </div>
 
-            <!-- Method 3: Direct Download -->
             <div class="method-card">
                 <div class="method-header">
                     <span class="method-icon">💾</span>
@@ -77,9 +77,29 @@
                     Download IPA
                 </a>
             </div>
+
+            <div class="method-card">
+                <div class="method-header">
+                    <span class="method-icon">🔍</span>
+                    <div>
+                        <h3>Debug Links</h3>
+                        <p>Check configuration files</p>
+                    </div>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <a href="manifest.plist" target="_blank" style="padding: 8px; background: #e9ecef; border-radius: 6px; text-decoration: none; color: #333; font-size: 14px;">
+                        📄 View manifest.plist
+                    </a>
+                    <a href="apps.json" target="_blank" style="padding: 8px; background: #e9ecef; border-radius: 6px; text-decoration: none; color: #333; font-size: 14px;">
+                        📄 View apps.json
+                    </a>
+                    <a href="version.txt" target="_blank" style="padding: 8px; background: #e9ecef; border-radius: 6px; text-decoration: none; color: #333; font-size: 14px;">
+                        📄 View version.txt
+                    </a>
+                </div>
+            </div>
         </div>
 
-        <!-- Instructions -->
         <div class="instructions">
             <h3>📋 Installation Steps (OTA):</h3>
             <ol>
@@ -89,37 +109,23 @@
                 <li>Find the app and tap <strong>"Trust"</strong></li>
                 <li>Return home and launch the app</li>
             </ol>
+            <p style="margin-top: 10px; color: #d32f2f;"><strong>⚠️ If installation fails:</strong></p>
+            <ul style="margin-top: 5px;">
+                <li>Make sure you're using iOS 9.0 or later</li>
+                <li>Check that your device has enough storage</li>
+                <li>Try downloading via Direct Download instead</li>
+                <li>Your device may need to be registered in the provisioning profile</li>
+            </ul>
         </div>
 
-        <div class="instructions">
-            <h3>📋 Installation Steps (AltStore):</h3>
-            <ol>
-                <li>Install <a href="https://altstore.io" target="_blank">AltStore</a> on your device</li>
-                <li>Open AltStore → <strong>Sources</strong> → <strong>+</strong></li>
-                <li>Copy and paste the repository URL above</li>
-                <li>Find "Noveo Native" and tap <strong>Install</strong></li>
-            </ol>
-        </div>
-
-        <!-- Screenshots -->
-        <div class="screenshots">
-            <h3>📸 Screenshots</h3>
-            <div class="screenshot-grid">
-                <img src="assets/screenshot1.png" alt="Screenshot 1">
-                <img src="assets/screenshot2.png" alt="Screenshot 2">
-            </div>
-        </div>
-
-        <!-- Warning -->
         <div class="warning">
             <strong>⚠️ Important Notice:</strong><br>
             This app is distributed outside the App Store and signed with an enterprise certificate.
             Only install if you trust the developer. Your device may require you to trust the certificate in Settings.
         </div>
 
-        <!-- Footer -->
         <div class="footer">
-            <p>pcpapc172</p>
+            <p>Made with ❤️ for iOS users</p>
             <p class="github-link">
                 <a href="https://github.com/pcpapc172/NoveoNative" target="_blank">
                     View Source Code on GitHub
@@ -132,36 +138,80 @@
         const GITHUB_PAGES_URL = window.location.origin + window.location.pathname.replace(/\/$/, '');
         const VERSION_FILE = GITHUB_PAGES_URL + '/version.txt';
         
-        // Set repo URL
+        // Enhanced logging
+        function log(msg) {
+            console.log('[NoveoNative]', msg);
+            const debugInfo = document.getElementById('debugInfo');
+            const debugText = document.getElementById('debugText');
+            if (debugInfo && debugText) {
+                debugInfo.style.display = 'block';
+                debugText.innerHTML += msg + '<br>';
+            }
+        }
+        
+        log('Page loaded');
+        log('Base URL: ' + GITHUB_PAGES_URL);
+        
         document.getElementById('repoUrl').value = GITHUB_PAGES_URL + '/apps.json';
         
-        // Set install button
         const manifestUrl = GITHUB_PAGES_URL + '/manifest.plist';
-        document.getElementById('installBtn').href = `itms-services://?action=download-manifest&url=${encodeURIComponent(manifestUrl)}`;
+        const installUrl = `itms-services://?action=download-manifest&url=${encodeURIComponent(manifestUrl)}`;
         
-        // Load version info
+        log('Manifest URL: ' + manifestUrl);
+        log('Install URL: ' + installUrl);
+        
+        document.getElementById('installBtn').href = installUrl;
+        
+        // Check if files exist
+        async function checkFile(url, name) {
+            try {
+                const response = await fetch(url, { method: 'HEAD' });
+                if (response.ok) {
+                    log(`✅ ${name} exists (${response.status})`);
+                    return true;
+                } else {
+                    log(`❌ ${name} not found (${response.status})`);
+                    return false;
+                }
+            } catch (error) {
+                log(`❌ ${name} error: ${error.message}`);
+                return false;
+            }
+        }
+        
+        async function validateSetup() {
+            log('Validating setup...');
+            await checkFile(GITHUB_PAGES_URL + '/manifest.plist', 'manifest.plist');
+            await checkFile(GITHUB_PAGES_URL + '/NoveoNative.ipa', 'NoveoNative.ipa');
+            await checkFile(GITHUB_PAGES_URL + '/apps.json', 'apps.json');
+            await checkFile(GITHUB_PAGES_URL + '/version.txt', 'version.txt');
+        }
+        
         async function loadVersion() {
             try {
                 const response = await fetch(VERSION_FILE + '?t=' + Date.now());
                 const version = await response.text();
                 document.getElementById('version').textContent = `Version ${version.trim()}`;
+                log('Version: ' + version.trim());
             } catch (error) {
                 document.getElementById('version').textContent = 'Version 1.0.0';
+                log('Version fetch error: ' + error.message);
             }
         }
         
-        // Get IPA size
         async function getIPASize() {
             try {
                 const response = await fetch(GITHUB_PAGES_URL + '/NoveoNative.ipa', { method: 'HEAD' });
                 const size = parseInt(response.headers.get('content-length'));
-                document.getElementById('size').textContent = `${(size / 1024 / 1024).toFixed(1)} MB`;
+                const sizeMB = (size / 1024 / 1024).toFixed(1);
+                document.getElementById('size').textContent = `${sizeMB} MB`;
+                log('IPA size: ' + sizeMB + ' MB');
             } catch (error) {
                 document.getElementById('size').textContent = 'N/A';
+                log('Size fetch error: ' + error.message);
             }
         }
         
-        // Copy repo URL
         function copyRepoUrl() {
             const input = document.getElementById('repoUrl');
             input.select();
@@ -174,40 +224,34 @@
             }, 2000);
         }
         
-        // Detect iOS
         // Better iOS/iPadOS detection
         function isIOSDevice() {
-            // Check for iPad/iPhone/iPod in user agent
             if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
                 return true;
             }
-            
-            // Check for iPadOS (reports as Mac but has touch)
             if (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) {
                 return true;
             }
-            
-            // Check for iOS/iPadOS features
             if (navigator.platform === 'iPad' || navigator.platform === 'iPhone') {
                 return true;
             }
-            
             return false;
         }
         
         const isIOS = isIOSDevice();
+        log('Is iOS device: ' + isIOS);
+        log('User Agent: ' + navigator.userAgent);
+        log('Platform: ' + navigator.platform);
+        log('Max touch points: ' + navigator.maxTouchPoints);
         
-        if (!isIOS) {
-            const otaCard = document.getElementById('otaCard');
-            otaCard.style.opacity = '0.6';
-            document.getElementById('installBtn').onclick = (e) => {
-                e.preventDefault();
-                alert('OTA installation only works on iOS devices.');
-            };
-        }
-
+        // Track install button clicks
+        document.getElementById('installBtn').addEventListener('click', function(e) {
+            log('Install button clicked');
+            log('Redirecting to: ' + installUrl);
+            // Don't prevent default - let it navigate
+        });
         
-        // Load data
+        validateSetup();
         loadVersion();
         getIPASize();
     </script>
