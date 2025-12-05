@@ -115,14 +115,16 @@ jobs:
           cd zsign/build/macos
           make clean && make
           
+          # Binary is in ../../bin/zsign (relative to build/macos)
           # Move binary to accessible location
-          sudo cp zsign /usr/local/bin/
+          sudo cp ../../bin/zsign /usr/local/bin/
           
           # Verify
           /usr/local/bin/zsign -v || echo "✅ Zsign built successfully"
           
           cd ../../..
           rm -rf zsign
+
           
       - name: Setup certificate and provisioning profile
         if: steps.check.outputs.already_deployed != 'true'
