@@ -1,0 +1,36 @@
+{
+  "name": "Noveo Native Repository",
+  "identifier": "com.noveo.repo",
+  "sourceURL": "https://pcpapc172.github.io/noveo-native-install/apps.json",
+  "apps": [
+    {
+      "name": "Noveo Native",
+      "bundleIdentifier": "com.yourcompany.noveonative",
+      "developerName": "Your Name",
+      "subtitle": "Modern Messenger for iOS",
+      "version": "v1.1.5",
+      "versionDate": "2025-12-05T12:56:34Z",
+      "versionDescription": "Latest release with bug fixes and improvements",
+      "downloadURL": "https://pcpapc172.github.io/noveo-native-install/NoveoNative.ipa",
+      "localizedDescription": "A beautiful and modern messaging app with real-time features including typing indicators, seen receipts, file sharing, and more.",
+      "iconURL": "https://pcpapc172.github.io/noveo-native-install/assets/icon512.png",
+      "tintColor": "#3b82f6",
+      "size": 18663622,
+      "screenshotURLs": [
+        "https://pcpapc172.github.io/noveo-native-install/assets/screenshot1.png",
+        "https://pcpapc172.github.io/noveo-native-install/assets/screenshot2.png"
+      ]
+    }
+  ],
+  "news": [
+    {
+      "title": "Noveo Native v1.1.5 Released!",
+      "identifier": "v1.1.5",
+      "caption": "Check out the latest features and improvements",
+      "date": "2025-12-05T12:56:34Z",
+      "tintColor": "#3b82f6",
+      "imageURL": "https://pcpapc172.github.io/noveo-native-install/assets/icon512.png",
+      "notify": true
+    }
+  ]
+}
