@@ -138,7 +138,6 @@
         const GITHUB_PAGES_URL = window.location.origin + window.location.pathname.replace(/\/$/, '');
         const VERSION_FILE = GITHUB_PAGES_URL + '/version.txt';
         
-        // Enhanced logging
         function log(msg) {
             console.log('[NoveoNative]', msg);
             const debugInfo = document.getElementById('debugInfo');
@@ -148,21 +147,12 @@
                 debugText.innerHTML += msg + '<br>';
             }
         }
-        
-        log('Page loaded');
-        log('Base URL: ' + GITHUB_PAGES_URL);
-        
+
         document.getElementById('repoUrl').value = GITHUB_PAGES_URL + '/apps.json';
-        
         const manifestUrl = GITHUB_PAGES_URL + '/manifest.plist';
         const installUrl = `itms-services://?action=download-manifest&url=${encodeURIComponent(manifestUrl)}`;
-        
-        log('Manifest URL: ' + manifestUrl);
-        log('Install URL: ' + installUrl);
-        
         document.getElementById('installBtn').href = installUrl;
-        
-        // Check if files exist
+
         async function checkFile(url, name) {
             try {
                 const response = await fetch(url, { method: 'HEAD' });
@@ -178,7 +168,7 @@
                 return false;
             }
         }
-        
+
         async function validateSetup() {
             log('Validating setup...');
             await checkFile(GITHUB_PAGES_URL + '/manifest.plist', 'manifest.plist');
@@ -186,7 +176,7 @@
             await checkFile(GITHUB_PAGES_URL + '/apps.json', 'apps.json');
             await checkFile(GITHUB_PAGES_URL + '/version.txt', 'version.txt');
         }
-        
+
         async function loadVersion() {
             try {
                 const response = await fetch(VERSION_FILE + '?t=' + Date.now());
@@ -198,7 +188,7 @@
                 log('Version fetch error: ' + error.message);
             }
         }
-        
+
         async function getIPASize() {
             try {
                 const response = await fetch(GITHUB_PAGES_URL + '/NoveoNative.ipa', { method: 'HEAD' });
@@ -211,72 +201,32 @@
                 log('Size fetch error: ' + error.message);
             }
         }
-        
+
         function copyRepoUrl() {
             const input = document.getElementById('repoUrl');
             input.select();
             document.execCommand('copy');
-            
             const btn = event.target;
             btn.textContent = '✓ Copied!';
-            setTimeout(() => {
-                btn.textContent = 'Copy';
-            }, 2000);
+            setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
         }
-        
-        // Better iOS/iPadOS detection
+
         function isIOSDevice() {
-            if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-                return true;
-            }
-            if (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) {
-                return true;
-            }
-            if (navigator.platform === 'iPad' || navigator.platform === 'iPhone') {
-                return true;
-            }
+            if (/iPad|iPhone|iPod/.test(navigator.userAgent)) return true;
+            if (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) return true;
+            if (navigator.platform === 'iPad' || navigator.platform === 'iPhone') return true;
             return false;
         }
 
-        
-        
         const isIOS = isIOSDevice();
         log('Is iOS device: ' + isIOS);
         log('User Agent: ' + navigator.userAgent);
         log('Platform: ' + navigator.platform);
         log('Max touch points: ' + navigator.maxTouchPoints);
 
-
-
-        async function getLastModified() {
-            try {
-                // Fetch headers for the IPA file
-                const response = await fetch(GITHUB_PAGES_URL + '/NoveoNative.ipa', { method: 'HEAD' });
-                
-                // Get the Last-Modified date string
-                const lastMod = response.headers.get('last-modified');
-                
-                if (lastMod) {
-                    const date = new Date(lastMod);
-                    
-                    // Option A: Simple Date (e.g., "12/6/2025")
-                    // document.getElementById('updated').textContent = date.toLocaleDateString();
-                    
-                    // Option B: Relative Time (e.g., "2 hours ago") - RECOMMENDED
-                    document.getElementById('updated').textContent = timeAgo(date);
-                    
-                    log('Updated date: ' + date.toISOString());
-                }
-            } catch (error) {
-                log('Date fetch error: ' + error.message);
-            }
-        }
-        
-        // Helper function to make "2 hours ago" style text
         function timeAgo(date) {
             const seconds = Math.floor((new Date() - date) / 1000);
             let interval = seconds / 31536000;
-        
             if (interval > 1) return Math.floor(interval) + " years ago";
             interval = seconds / 2592000;
             if (interval > 1) return Math.floor(interval) + " months ago";
@@ -289,17 +239,30 @@
             return "Just now";
         }
 
-        // Track install button clicks
+        async function getVersionCommitDate() {
+            try {
+                const filePath = 'version.txt';
+                const url = `https://api.github.com/repos/pcpapc172/noveo-native-install/contents/${filePath}?ref=gh-pages`;
+                const response = await fetch(url);
+                const data = await response.json();
+                const commitDate = new Date(data.commit.committer.date || data.commit.author.date);
+                document.getElementById('updated').textContent = timeAgo(commitDate);
+                log('Commit date for version.txt: ' + commitDate.toISOString());
+            } catch (error) {
+                log('Error fetching commit date: ' + error.message);
+                document.getElementById('updated').textContent = 'N/A';
+            }
+        }
+
         document.getElementById('installBtn').addEventListener('click', function(e) {
             log('Install button clicked');
             log('Redirecting to: ' + installUrl);
-            // Don't prevent default - let it navigate
         });
-        
+
         validateSetup();
         loadVersion();
         getIPASize();
-        getLastModified();
+        getVersionCommitDate();
     </script>
 </body>
 </html>
