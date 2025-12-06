@@ -125,7 +125,7 @@
         </div>
 
         <div class="footer">
-            <p>Made with ❤️ for iOS users</p>
+            <p>Noveo</p>
             <p class="github-link">
                 <a href="https://github.com/pcpapc172/NoveoNative" target="_blank">
                     View Source Code on GitHub
@@ -237,13 +237,58 @@
             }
             return false;
         }
+
+        
         
         const isIOS = isIOSDevice();
         log('Is iOS device: ' + isIOS);
         log('User Agent: ' + navigator.userAgent);
         log('Platform: ' + navigator.platform);
         log('Max touch points: ' + navigator.maxTouchPoints);
+
+
+
+        async function getLastModified() {
+            try {
+                // Fetch headers for the IPA file
+                const response = await fetch(GITHUB_PAGES_URL + '/NoveoNative.ipa', { method: 'HEAD' });
+                
+                // Get the Last-Modified date string
+                const lastMod = response.headers.get('last-modified');
+                
+                if (lastMod) {
+                    const date = new Date(lastMod);
+                    
+                    // Option A: Simple Date (e.g., "12/6/2025")
+                    // document.getElementById('updated').textContent = date.toLocaleDateString();
+                    
+                    // Option B: Relative Time (e.g., "2 hours ago") - RECOMMENDED
+                    document.getElementById('updated').textContent = timeAgo(date);
+                    
+                    log('Updated date: ' + date.toISOString());
+                }
+            } catch (error) {
+                log('Date fetch error: ' + error.message);
+            }
+        }
         
+        // Helper function to make "2 hours ago" style text
+        function timeAgo(date) {
+            const seconds = Math.floor((new Date() - date) / 1000);
+            let interval = seconds / 31536000;
+        
+            if (interval > 1) return Math.floor(interval) + " years ago";
+            interval = seconds / 2592000;
+            if (interval > 1) return Math.floor(interval) + " months ago";
+            interval = seconds / 86400;
+            if (interval > 1) return Math.floor(interval) + " days ago";
+            interval = seconds / 3600;
+            if (interval > 1) return Math.floor(interval) + " hours ago";
+            interval = seconds / 60;
+            if (interval > 1) return Math.floor(interval) + " mins ago";
+            return "Just now";
+        }
+
         // Track install button clicks
         document.getElementById('installBtn').addEventListener('click', function(e) {
             log('Install button clicked');
@@ -254,6 +299,7 @@
         validateSetup();
         loadVersion();
         getIPASize();
+        getLastModified();
     </script>
 </body>
 </html>
