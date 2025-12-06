@@ -242,17 +242,22 @@
         async function getVersionCommitDate() {
             try {
                 const filePath = 'version.txt';
-                const url = `https://api.github.com/repos/pcpapc172/noveo-native-install/contents/${filePath}?ref=gh-pages`;
+                const url = `https://api.github.com/repos/pcpapc172/noveo-native-install/commits?path=${filePath}&sha=gh-pages`;
                 const response = await fetch(url);
-                const data = await response.json();
-                const commitDate = new Date(data.commit.committer.date || data.commit.author.date);
-                document.getElementById('updated').textContent = timeAgo(commitDate);
-                log('Commit date for version.txt: ' + commitDate.toISOString());
+                const commits = await response.json();
+                if (commits && commits.length > 0) {
+                    const commitDate = new Date(commits[0].commit.committer.date);
+                    document.getElementById('updated').textContent = timeAgo(commitDate);
+                    log('Commit date for version.txt: ' + commitDate.toISOString());
+                } else {
+                    throw new Error('No commits found for version.txt');
+                }
             } catch (error) {
                 log('Error fetching commit date: ' + error.message);
                 document.getElementById('updated').textContent = 'N/A';
             }
         }
+
 
         document.getElementById('installBtn').addEventListener('click', function(e) {
             log('Install button clicked');
