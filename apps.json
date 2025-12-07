@@ -8,12 +8,12 @@
       "bundleIdentifier": "com.companyname.noveonative",
       "developerName": "PCPA",
       "subtitle": "Modern Messenger for iOS",
-      "version": "v1.2.5.1",
-      "versionDate": "2025-12-06T13:51:19Z",
+      "version": "v1.2.5.2",
+      "versionDate": "2025-12-07T08:36:58Z",
       "versionDescription": "Latest release",
       "downloadURL": "https://pcpapc172.github.io/noveo-native-install/NoveoNative.ipa",
       "localizedDescription": "Modern messaging app",
-      "size": 52433866
+      "size": 52450874
     }
   ]
 }
